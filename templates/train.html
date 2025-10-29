@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Trainer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg1:#0f172a;
+      --bg2:#0b1220;
+      --card: rgba(255,255,255,0.08);
+      --card-border: rgba(255,255,255,0.14);
+      --text:#e2e8f0;
+      --muted:#94a3b8;
+      --accent:#38bdf8;
+      --accent-2:#6366f1;
+      --accent-3:#06b6d4;
+      --ring: rgba(56,189,248,0.5);
+      --error:#ef4444;
+      --success:#22c55e;
+    }
+
+    * { box-sizing: border-box; }
+    html,body{ height:100%; }
+    body {
+      font-family: "Poppins", Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 10% 10%, #0b132b 0%, transparent 50%),
+                  radial-gradient(1200px 800px at 90% 90%, #111827 0%, transparent 50%),
+                  linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 24px;
+      overflow: hidden; /* keep page static; container will scroll */
+    }
+
+    /* Ambient glow */
+    body::before{
+      content:"";
+      position: fixed;
+      inset:-35%;
+      background: conic-gradient(from 0deg, rgba(56,189,248,.15), rgba(99,102,241,.15), rgba(6,182,212,.15), rgba(56,189,248,.15));
+      filter: blur(120px) saturate(140%);
+      z-index:-1;
+      animation: rotate 22s linear infinite;
+    }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+
+    /* Colorful aurora overlay */
+    body::after{
+      content:"";
+      position: fixed;
+      inset:-30%;
+      background:
+        radial-gradient(50% 60% at 20% 20%, rgba(244,63,94,.16), transparent 60%),
+        radial-gradient(60% 50% at 80% 80%, rgba(59,130,246,.16), transparent 60%),
+        radial-gradient(50% 50% at 30% 70%, rgba(34,197,94,.16), transparent 60%),
+        radial-gradient(60% 60% at 70% 30%, rgba(236,72,153,.16), transparent 60%);
+      filter: blur(60px);
+      z-index:-1;
+      pointer-events:none;
+      animation: float 16s ease-in-out infinite alternate;
+    }
+    @keyframes float { to { transform: translate3d(0,-20px,0) scale(1.02); } }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+      border: 1px solid var(--card-border);
+      border-radius: 22px;
+      padding: 28px;
+      backdrop-filter: blur(14px);
+      box-shadow:
+        0 10px 30px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.08);
+      position: relative;
+      overflow: auto;
+      max-height: 92vh;
+      -webkit-overflow-scrolling: touch;
+      scroll-padding-bottom: 16px;
+      transition: transform .3s ease, box-shadow .3s ease;
+      animation: fadeIn .6s ease;
+    }
+    @media (max-height: 700px){
+      .container { max-height: 88vh; }
+    }
+    .container:hover{
+      transform: translateY(-2px);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,.45),
+        inset 0 1px 0 rgba(255,255,255,.1);
+    }
+
+    /* Animated gradient border sheen */
+    .container::before{
+      content:"";
+      position:absolute; inset:-1px; border-radius: inherit; padding: 1px;
+      background: conic-gradient(from 0deg, #60a5fa, #22d3ee, #a78bfa, #34d399, #f472b6, #60a5fa);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: rotate 10s linear infinite;
+      opacity:.7;
+    }
+    .container::after{
+      content:"";
+      position:absolute; inset:0; border-radius: inherit; pointer-events:none;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
+    }
+
+    /* Top progress (indeterminate) */
+    .progress{
+      position:absolute; left:0; top:0; height:3px; width:100%;
+      background: transparent;
+      overflow:hidden;
+      opacity:0; transition: opacity .25s ease;
+    }
+    .progress.active{ opacity:1; }
+    .progress::after{
+      content:"";
+      position:absolute; left:-40%; top:0; height:100%; width:40%;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: slide 1.1s ease-in-out infinite;
+    }
+    @keyframes slide{
+      0%{ left:-40%; }
+      50%{ left:20%; }
+      100%{ left:100%; }
+    }
+
+    h2 {
+      margin: 0 0 6px 0;
+      font-size: 26px;
+      letter-spacing: .3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2) 50%, var(--accent-3));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .subtitle{
+      margin: 0 0 18px 0;
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 13px;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      margin: 0 0 8px 0;
+      font-weight: 600;
+      color: #e5eef9;
+      font-size: 14px;
+    }
+
+    .field{ margin-bottom: 18px; }
+    .input{
+      position: relative;
+    }
+    .input input[type="number"],
+    .input input[type="text"]{
+      width: 100%;
+      padding: 12px 14px 12px 42px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      background: rgba(8,12,22,0.35);
+      color: #f1f5f9;
+      font-size: 15px;
+      transition: border-color .25s ease, box-shadow .25s ease, background .25s ease, transform .08s ease;
+      outline: none;
+    }
+    .input input::placeholder{ color: rgba(226,232,240,.6); }
+    .input input:focus{
+      border-color: var(--ring);
+      box-shadow: 0 0 0 6px rgba(56,189,248,0.15), 0 10px 20px rgba(0,0,0,.25);
+      background: rgba(8,12,22,0.55);
+      transform: translateZ(0);
+    }
+    .icon{
+      position:absolute; left:12px; top: 50%; transform: translateY(-50%);
+      color: #9db4cf; opacity:.85; pointer-events: none;
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    /* Dropzone */
+    .dropzone{
+      border: 1.5px dashed rgba(148,163,184,.35);
+      border-radius: 14px;
+      background: rgba(8,12,22,0.25);
+      padding: 18px;
+      text-align: center;
+      transition: border-color .25s ease, background .25s ease, transform .2s ease;
+      cursor: pointer;
+      outline: none;
+    }
+    .dropzone:hover{ background: rgba(8,12,22,0.38); }
+    .dropzone.is-dragover{
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.10);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(56,189,248,0.15);
+    }
+    .dz-icon{
+      width: 40px; height: 40px;
+      margin: 2px auto 8px;
+      display:flex; align-items:center; justify-content:center;
+      color: #9db4cf;
+    }
+    .dz-text{ font-size: 14px; color: var(--text); }
+    .dz-text .link{ color: var(--accent); text-decoration: underline; }
+    .dz-sub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .dz-files{
+      display:grid; grid-template-columns: repeat(auto-fill, minmax(72px,1fr));
+      gap:8px; max-height: 140px; overflow:auto; padding-top:10px; border-top: 1px dashed rgba(148,163,184,.25);
+    }
+    .thumb{ position:relative; border-radius:10px; overflow:hidden; background: rgba(255,255,255,.04); border:1px solid rgba(148,163,184,.25); aspect-ratio:1; }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb .remove{
+      position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%;
+      background: rgba(0,0,0,.45); color:#fff; border:0; font-size:14px; line-height:20px; cursor:pointer;
+    }
+
+    /* Buttons */
+    .actions{ margin-top: 18px; display:flex; gap: 10px; }
+    button{
+      border: 0; cursor: pointer; border-radius: 14px; position: relative;
+      font-weight: 700; letter-spacing: .2px; overflow: hidden;
+      transition: transform .15s ease, box-shadow .25s ease, filter .25s ease, background .25s ease;
+    }
+    .btn-primary{
+      position:relative; overflow:hidden;
+      flex:1;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+      color: #fff;
+      padding: 12px 18px;
+      font-size: 16px;
+      box-shadow: 0 12px 24px rgba(3,105,161,.35), inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    .btn-primary::after{
+      content:"";
+      position:absolute; inset:0;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.18) 40%, transparent 60%);
+      transform: translateX(-120%);
+      transition: transform .6s ease;
+      pointer-events:none;
+    }
+    .btn-primary:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 16px 30px rgba(3,105,161,.45), inset 0 1px 0 rgba(255,255,255,.18);
+      filter: saturate(110%);
+    }
+    .btn-primary:hover::after{ transform: translateX(120%); }
+    .btn-primary:active{ transform: translateY(0); }
+    .btn-content{ display:inline-flex; align-items:center; justify-content:center; gap: 8px; width:100%; }
+    .spinner{
+      width: 16px; height:16px;
+      border-radius:50%;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading .spinner{ display: inline-block; }
+    .loading .btn-primary{ filter: grayscale(10%); opacity: .95; }
+    .loading .btn-primary .label{ opacity:.9; }
+
+    /* Ripple effect on primary button */
+    .btn-primary .ripple{
+      position:absolute; width:8px; height:8px; border-radius:50%;
+      background: radial-gradient(circle, rgba(255,255,255,.6) 0%, rgba(255,255,255,0) 60%);
+      transform: translate(-50%,-50%); pointer-events:none; animation: ripple .6s ease-out;
+    }
+    @keyframes ripple {
+      from { opacity:.7; transform: translate(-50%,-50%) scale(1); }
+      to   { opacity:0; transform: translate(-50%,-50%) scale(18); }
+    }
+
+    /* Toast result */
+    .toast{
+      display: none;
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      color: #dbeafe;
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.25);
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
+      text-align: left;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .toast.show{ display:block; }
+    .toast.success{ border-color: rgba(34,197,94,.45); background: rgba(6,78,59,.35); }
+    .toast.error{ border-color: rgba(239,68,68,.45); background: rgba(67,11,11,.35); }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Calm theme override */
+    body.calm{
+      --bg1:#0b1020; --bg2:#0a1a14;
+      --accent:#34d399; --accent-2:#22d3ee; --accent-3:#f472b6;
+    }
+
+    /* Floating labels */
+    .input.float { position:relative; }
+    .input.float input{
+      /* uses existing input styles */
+      padding: 12px 14px 12px 42px;
+    }
+    .input.float .float-label{
+      position:absolute; left:42px; top:50%; transform: translateY(-50%);
+      font-size:14px; color: rgba(226,232,240,.75);
+      transition: all .2s ease; pointer-events:none;
+      background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(15,23,42,.6));
+      padding: 0 6px; border-radius: 6px;
+    }
+    .input.float input:focus + .float-label,
+    .input.float input:not(:placeholder-shown) + .float-label{
+      top:-8px; left:10px; font-size:11px; color: var(--accent);
+      box-shadow: 0 0 0 6px rgba(56,189,248,0.04);
+    }
+
+    /* Theme toggle (premium pill) */
+    .theme-toggle{
+      position:absolute; top:12px; right:12px;
+      width:40px; height:40px; border-radius: 12px;
+      border:1px solid rgba(255,255,255,.25);
+      background: linear-gradient(180deg, #fde68a, #f59e0b);
+      color:#111; display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2);
+      transition: transform .15s ease, filter .2s ease, box-shadow .2s ease;
+    }
+    .theme-toggle:hover{ transform: translateY(-1px); filter: saturate(115%); box-shadow: 0 10px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25); }
+
+    /* Field helpers and invalid state */
+    .helper{ margin-top:6px; font-size:12px; color: var(--muted); min-height: 14px; transition: color .2s ease; }
+    .helper.error{ color: #fecaca; }
+    .input.invalid input{
+      border-color: rgba(239,68,68,.7) !important;
+      box-shadow: 0 0 0 6px rgba(239,68,68,0.08), 0 10px 20px rgba(0,0,0,.18) !important;
+      background: rgba(48,8,12,0.35);
+    }
+
+    /* Dropzone badge */
+    .dropzone{ position:relative; }
+    .badge{
+      position:absolute; top:10px; right:10px;
+      font-size:11px; padding: 4px 8px; border-radius: 999px;
+      color:#0b1220; background: linear-gradient(90deg, #34d399, #22d3ee);
+      border: 1px solid rgba(255,255,255,.3);
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+
+    /* Ghost button */
+    .btn-ghost{
+      padding: 12px 16px; font-weight:700; color:#d1e5ff; background: rgba(255,255,255,0.06);
+      border:1px solid rgba(148,163,184,.30); border-radius:14px;
+      backdrop-filter: blur(10px);
+    }
+    .btn-ghost:hover{ background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+    .btn-ghost:active{ transform: translateY(0); }
+
+    /* Better focus visibility */
+    :focus-visible{
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce){
+      *{ animation: none !important; transition: none !important; }
+    }
+
+    /* 10 background themes */
+    body.theme-1{
+      --bg1:#0f172a; --bg2:#0b1220;
+      --accent:#38bdf8; --accent-2:#6366f1; --accent-3:#06b6d4;
+    }
+    body.theme-2{
+      --bg1:#0a1f1a; --bg2:#06140f;
+      --accent:#34d399; --accent-2:#22d3ee; --accent-3:#f472b6;
+    }
+    body.theme-3{
+      --bg1:#100b2b; --bg2:#0a0820;
+      --accent:#8b5cf6; --accent-2:#a78bfa; --accent-3:#22d3ee;
+    }
+    body.theme-4{
+      --bg1:#1a1007; --bg2:#0f0905;
+      --accent:#f59e0b; --accent-2:#f97316; --accent-3:#84cc16;
+    }
+    body.theme-5{
+      --bg1:#240b1a; --bg2:#150611;
+      --accent:#f472b6; --accent-2:#ec4899; --accent-3:#6366f1;
+    }
+    body.theme-6{
+      --bg1:#05161f; --bg2:#031018;
+      --accent:#22d3ee; --accent-2:#60a5fa; --accent-3:#a78bfa;
+    }
+    body.theme-7{
+      --bg1:#061a0b; --bg2:#041207;
+      --accent:#84cc16; --accent-2:#10b981; --accent-3:#06b6d4;
+    }
+    body.theme-8{
+      --bg1:#200a06; --bg2:#140704;
+      --accent:#ef4444; --accent-2:#f97316; --accent-3:#f59e0b;
+    }
+    body.theme-9{
+      --bg1:#140721; --bg2:#0b0516;
+      --accent:#a78bfa; --accent-2:#f472b6; --accent-3:#22d3ee;
+    }
+    body.theme-10{
+      --bg1:#1e1306; --bg2:#120b04;
+      --accent:#fbbf24; --accent-2:#f59e0b; --accent-3:#ef4444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="card">
+    <!-- Theme toggle -->
+    <button id="themeToggle" class="theme-toggle" type="button" title="Toggle theme" aria-label="Toggle theme">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12 3v2m0 14v2M21 12h-2M5 12H3m14.95 4.95-1.41-1.41M6.46 6.46 5.05 5.05m12.9 0-1.41 1.41M6.46 17.54l-1.41 1.41" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <div id="progress" class="progress" aria-hidden="true"></div>
+
+    <h2>Face Trainer</h2>
+    <div class="subtitle">Train your model with a classy, modern interface</div>
+
+    <form id="trainForm" enctype="multipart/form-data" method="post">
+      <!-- ID field (floating) -->
+      <div class="field">
+        <div class="input float" id="idField">
+          <span class="icon" aria-hidden="true">
+            <!-- id-card icon -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M7 10h6M7 14h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input type="number" id="person_id" name="person_id" placeholder=" " required aria-invalid="false" aria-describedby="idHelp">
+          <label for="person_id" class="float-label">ID</label>
+        </div>
+        <div class="helper" id="idHelp"></div>
+      </div>
+
+      <!-- Name field (floating) -->
+      <div class="field">
+        <div class="input float" id="nameField">
+          <span class="icon" aria-hidden="true">
+            <!-- user icon -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M21 21a9 9 0 0 0-18 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input type="text" id="name" name="name" placeholder=" " required aria-invalid="false" aria-describedby="nameHelp">
+          <label for="name" class="float-label">Name</label>
+        </div>
+        <div class="helper" id="nameHelp"></div>
+      </div>
+
+      <div class="field">
+        <label>Upload up to 5 images</label>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload images by browsing or drag and drop">
+          <div class="dz-icon" aria-hidden="true">
+            <!-- camera icon -->
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.8A2 2 0 0 1 10.8 3h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.3"/>
+              <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.3"/>
+            </svg>
+          </div>
+          <div class="dz-text"><strong>Drag & drop</strong> files here or <span class="link">browse</span></div>
+          <div class="dz-sub">PNG or JPG. Max 5 images.</div>
+          <span id="fileBadge" class="badge" aria-live="polite">0/5</span>
+          <div class="dz-files" id="fileList"></div>
+        </div>
+        <input id="fileInput" type="file" name="files" multiple required accept="image/*" style="display:none">
+      </div>
+
+      <div class="actions">
+        <button id="submitBtn" type="submit" class="btn-primary">
+          <span class="btn-content">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="label">Train Face</span>
+          </span>
+        </button>
+        <button type="button" id="resetBtn" class="btn-ghost">Reset</button>
+      </div>
+    </form>
+
+    <div id="result" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- New: link to Face Recognition -->
+    <a href="/recognize-page" class="btn-ghost" style="margin-top:12px; text-decoration:none; display:block; text-align:center;">
+      ➡ Go to Face Recognition
+    </a>
+  </div>
+
+  <script>
+    const form = document.getElementById('trainForm');
+    const fileInput = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const fileList = document.getElementById('fileList');
+    const resultEl = document.getElementById('result');
+    const submitBtn = document.getElementById('submitBtn');
+    const progress = document.getElementById('progress');
+    const card = document.getElementById('card');
+    const themeToggle = document.getElementById('themeToggle');
+
+    // Local state for previews/removal
+    let filesState = [];
+
+    function showToast(message, type = '') {
+      resultEl.className = 'toast show ' + (type || '');
+      if (typeof message === 'object') {
+        resultEl.textContent = '';
+        const pre = document.createElement('pre');
+        pre.style.margin = 0;
+        pre.textContent = JSON.stringify(message, null, 2);
+        resultEl.appendChild(pre);
+      } else {
+        resultEl.textContent = message;
+      }
+    }
+
+    function clampToImages(files) {
+      const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (arr.length > 5) {
+        showToast('You selected more than 5 images. Keeping the first 5.', 'error');
+      }
+      return arr.slice(0, 5);
+    }
+
+    function setFilesOnInput(filesArr) {
+      const dt = new DataTransfer();
+      filesArr.forEach(f => dt.items.add(f));
+      fileInput.files = dt.files;
+    }
+
+    const idInput = document.getElementById('person_id');
+    const nameInput = document.getElementById('name');
+    const idField = document.getElementById('idField');
+    const nameField = document.getElementById('nameField');
+    const idHelp = document.getElementById('idHelp');
+    const nameHelp = document.getElementById('nameHelp');
+    const resetBtn = document.getElementById('resetBtn');
+    const fileBadge = document.getElementById('fileBadge');
+
+    // Persist theme
+    (function(){
+      const saved = localStorage.getItem('theme');
+      if (saved === 'calm') document.body.classList.add('calm');
+    })();
+    themeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('calm');
+      localStorage.setItem('theme', document.body.classList.contains('calm') ? 'calm' : 'vibrant');
+    });
+
+    const THEMES = ['theme-1','theme-2','theme-3','theme-4','theme-5','theme-6','theme-7','theme-8','theme-9','theme-10'];
+
+    function applyTheme(index){
+      document.body.classList.remove('calm');
+      THEMES.forEach(t => document.body.classList.remove(t));
+      document.body.classList.add(THEMES[index]);
+      localStorage.setItem('themeIndex', String(index));
+    }
+
+    function getSavedThemeIndex(){
+      const legacy = localStorage.getItem('theme'); // map old calm to a nearby palette
+      if (legacy === 'calm') return 2;
+      const saved = parseInt(localStorage.getItem('themeIndex') || '0', 10);
+      return Number.isNaN(saved) ? 0 : Math.min(Math.max(saved, 0), THEMES.length - 1);
+    }
+
+    let themeIndex = getSavedThemeIndex();
+    applyTheme(themeIndex);
+
+    themeToggle.addEventListener('click', () => {
+      themeIndex = (themeIndex + 1) % THEMES.length;
+      applyTheme(themeIndex);
+    });
+
+    function setFieldValidity(input, fieldWrap, helper, ok, message=''){
+      fieldWrap.classList.toggle('invalid', !ok);
+      input.setAttribute('aria-invalid', ok ? 'false' : 'true');
+      helper.textContent = message || '';
+      helper.classList.toggle('error', !ok);
+    }
+
+    function validateFields(){
+      const idVal = (idInput.value || '').trim();
+      const nameVal = (nameInput.value || '').trim();
+
+      let ok = true;
+      if (!idVal || isNaN(Number(idVal)) || Number(idVal) < 0) {
+        setFieldValidity(idInput, idField, idHelp, false, 'Enter a valid positive numeric ID.');
+        ok = false;
+      } else {
+        setFieldValidity(idInput, idField, idHelp, true);
+      }
+
+      if (!nameVal || nameVal.length < 2) {
+        setFieldValidity(nameInput, nameField, nameHelp, false, 'Name must be at least 2 characters.');
+        ok = false;
+      } else {
+        setFieldValidity(nameInput, nameField, nameHelp, true);
+      }
+      return ok;
+    }
+
+    function updateBadge(){
+      fileBadge.textContent = `${filesState.length}/5`;
+    }
+
+    function updateFileListDisplay() {
+      fileList.innerHTML = '';
+      if (!filesState.length) return;
+      filesState.forEach((f, i) => {
+        const url = URL.createObjectURL(f);
+        const div = document.createElement('div');
+        div.className = 'thumb';
+        div.innerHTML = `<img src="${url}" alt="${f.name}"><button class="remove" data-index="${i}" title="Remove">&times;</button>`;
+        fileList.appendChild(div);
+      });
+      updateBadge();
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+    ['dragenter','dragover'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropzone.classList.add('is-dragover');
+      });
+    });
+    ['dragleave','dragend','drop'].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault(); e.stopPropagation();
+        dropzone.classList.remove('is-dragover');
+      });
+    });
+    dropzone.addEventListener('drop', (e) => {
+      filesState = clampToImages(e.dataTransfer.files);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+    });
+    fileInput.addEventListener('change', () => {
+      filesState = clampToImages(fileInput.files);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+    });
+    fileList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.remove');
+      if (!btn) return;
+      const idx = Number(btn.dataset.index);
+      filesState.splice(idx, 1);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+    });
+
+    function setLoading(state) {
+      if (state) {
+        card.classList.add('loading');
+        progress.classList.add('active');
+        submitBtn.disabled = true;
+        submitBtn.querySelector('.label').textContent = 'Training...';
+      } else {
+        card.classList.remove('loading');
+        progress.classList.remove('active');
+        submitBtn.disabled = false;
+        submitBtn.querySelector('.label').textContent = 'Train Face';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      // Ripple on click
+      const rect = submitBtn.getBoundingClientRect();
+      const x = (e.clientX || (rect.width/2)) - rect.left;
+      const y = (e.clientY || (rect.height/2)) - rect.top;
+      const r = document.createElement('span');
+      r.className = 'ripple'; r.style.left = x + 'px'; r.style.top = y + 'px';
+      submitBtn.appendChild(r); setTimeout(()=>r.remove(), 600);
+
+      e.preventDefault();
+
+      // Validation
+      if (!validateFields()){
+        showToast('Please fix the highlighted fields.', 'error');
+        return;
+      }
+      if (!fileInput.files.length) {
+        showToast('Please select at least 1 image.', 'error');
+        return;
+      }
+
+      setLoading(true);
+      showToast('Training in progress...', '');
+      try {
+        const formData = new FormData(form); // includes hidden file input
+        const response = await fetch('/train/', {  // CHANGED: relative same-origin URL
+          method: 'POST',
+          body: formData
+        });
+
+        const isJson = response.headers.get('content-type')?.includes('application/json');
+        if (!response.ok) {
+          const errText = isJson ? await response.json() : await response.text();
+          showToast(isJson ? errText : ('Error: ' + errText), 'error');
+        } else {
+          const result = isJson ? await response.json() : await response.text();
+          showToast(result, 'success');
+          confettiBurst();
+        }
+      } catch (err) {
+        showToast('Error: ' + (err?.message || err), 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Confetti burst (lightweight)
+    function confettiBurst(duration = 1000, count = 120){
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;';
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      document.body.appendChild(canvas);
+
+      const pieces = Array.from({length: count}).map(()=>({
+        x: Math.random()*canvas.width,
+        y: -20 - Math.random()*canvas.height*0.2,
+        r: 2 + Math.random()*4,
+        c: `hsl(${Math.random()*360},90%,60%)`,
+        s: 1 + Math.random()*3,
+        a: Math.random()*Math.PI
+      }));
+
+      const start = performance.now();
+      (function loop(t){
+        const elapsed = t - start;
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        pieces.forEach(p=>{
+          p.y += p.s*4;
+          p.x += Math.sin((elapsed/200)+p.a)*0.8;
+          ctx.fillStyle = p.c;
+          ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+        });
+        if (elapsed < duration){ requestAnimationFrame(loop); }
+        else { canvas.remove(); }
+      })(start);
+    }
+
+    // Update dropzone handlers to keep badge in sync
+    dropzone.addEventListener('drop', (e) => {
+      filesState = clampToImages(e.dataTransfer.files);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+      updateBadge();
+    });
+    fileInput.addEventListener('change', () => {
+      filesState = clampToImages(fileInput.files);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+      updateBadge();
+    });
+    fileList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.remove');
+      if (!btn) return;
+      const idx = Number(btn.dataset.index);
+      filesState.splice(idx, 1);
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+      updateBadge();
+    });
+
+    // Reset button
+    resetBtn.addEventListener('click', () => {
+      form.reset();
+      filesState = [];
+      setFilesOnInput(filesState);
+      updateFileListDisplay();
+      updateBadge();
+      setFieldValidity(idInput, idField, idHelp, true);
+      setFieldValidity(nameInput, nameField, nameHelp, true);
+      showToast('', '');
+    });
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Recognition</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* --- theme variables and modern background --- */
+    :root{
+      --bg1:#0f172a; --bg2:#0b1220;
+      --accent:#38bdf8; --accent-2:#6366f1; --accent-3:#06b6d4;
+      /* aurora color vars used by body::after */
+      --aurora1: rgba(244,63,94,.16);
+      --aurora2: rgba(59,130,246,.16);
+      --aurora3: rgba(34,197,94,.16);
+      --aurora4: rgba(236,72,153,.16);
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: "Poppins", Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 10% 10%, #0b132b 0%, transparent 50%),
+                  radial-gradient(1200px 800px at 90% 90%, #111827 0%, transparent 50%),
+                  linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      overflow: hidden;
+    }
+    body::before{
+      content:"";
+      position: fixed; inset:-35%;
+      background: conic-gradient(from 0deg, rgba(56,189,248,.15), rgba(99,102,241,.15), rgba(6,182,212,.15), rgba(56,189,248,.15));
+      filter: blur(120px) saturate(140%); z-index:-1; animation: rotate 22s linear infinite;
+    }
+    body::after{
+      content:"";
+      position: fixed; inset:-30%;
+      background:
+        radial-gradient(50% 60% at 20% 20%, var(--aurora1), transparent 60%),
+        radial-gradient(60% 50% at 80% 80%, var(--aurora2), transparent 60%),
+        radial-gradient(50% 50% at 30% 70%, var(--aurora3), transparent 60%),
+        radial-gradient(60% 60% at 70% 30%, var(--aurora4), transparent 60%);
+      filter: blur(60px); z-index:-1; pointer-events:none; animation: float 16s ease-in-out infinite alternate;
+    }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    @keyframes float { to { transform: translate3d(0,-20px,0) scale(1.02); } }
+
+    .container {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 560px;
+      padding: 30px;
+      text-align: center;
+      animation: fadeIn 0.6s ease;
+      position: relative;
+      /* Allow result image to fit/scroll instead of being clipped */
+      overflow: auto;
+      max-height: 92vh;
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    .container::before{
+      content:""; position:absolute; inset:-1px; border-radius: inherit; padding:1px;
+      background: conic-gradient(from 0deg,#60a5fa,#22d3ee,#a78bfa,#34d399,#f472b6,#60a5fa);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: rotate 10s linear infinite; opacity:.7; pointer-events:none;
+    }
+    .container::after{
+      content:"";
+      position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+    }
+
+    /* FIX: unify gradient title (remove conflicting color) */
+    h2 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2) 50%, var(--accent-3));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    /* Dropzone (single image) */
+    .field{ margin: 12px 0 0; }
+    .dropzone{
+      border: 1.5px dashed rgba(148,163,184,.35);
+      border-radius: 14px;
+      background: rgba(8,12,22,0.25);
+      padding: 18px;
+      text-align: center;
+      transition: border-color .25s ease, background .25s ease, transform .2s ease;
+      cursor: pointer; outline: none; position: relative;
+    }
+    .dropzone:hover{ background: rgba(8,12,22,0.38); }
+    .dropzone.is-dragover{
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.10);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px rgba(56,189,248,0.15);
+    }
+    .dz-icon{
+      width: 40px; height: 40px; margin: 2px auto 8px;
+      display:flex; align-items:center; justify-content:center; color:#9db4cf;
+    }
+    .dz-text{ font-size: 14px; color: #f8fafc; }
+    .dz-text .link{ color: var(--accent); text-decoration: underline; }
+    .dz-sub{ font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+    /* small badge in dropzone */
+    .badge{
+      position:absolute; top:10px; right:10px;
+      font-size:11px; padding: 4px 8px; border-radius:999px;
+      color:#0b1220; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border: 1px solid rgba(255,255,255,.35);
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+
+    /* Preview */
+    .preview{ margin-top:10px; display:grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap:10px; }
+    .thumb{ position:relative; border-radius:12px; overflow:hidden; background: rgba(255,255,255,.04); border:1px solid rgba(148,163,184,.25); aspect-ratio:16/10; }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb .remove{
+      position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%;
+      background: rgba(0,0,0,.45); color:#fff; border:0; font-size:14px; line-height:22px; cursor:pointer;
+    }
+
+    /* Toast-style status */
+    #status{
+      margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-size: 13px;
+      color: #dbeafe; background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.25); box-shadow: 0 10px 24px rgba(0,0,0,.35);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    #status.success{ border-color: rgba(34,197,94,.45); background: rgba(6,78,59,.35); }
+    #status.error{ border-color: rgba(239,68,68,.45); background: rgba(67,11,11,.35); }
+
+    /* Actions row + ghost button */
+    .actions{ margin-top: 14px; display:flex; gap: 10px; }
+    .btn-ghost{
+      padding: 12px 16px; font-weight:700; color:#d1e5ff; background: rgba(255,255,255,0.06);
+      border:1px solid rgba(148,163,184,.30); border-radius:14px; backdrop-filter: blur(10px); width:100%;
+      transition: transform .15s ease, background .25s ease;
+    }
+    .btn-ghost:hover{ background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+
+    /* FIX: add primary button + spinner + ripple styles */
+    .btn-primary{
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+      color: white; font-weight: 700; border: none; border-radius: 12px;
+      padding: 12px 20px; font-size: 16px; cursor: pointer; width: 100%;
+      transition: all 0.3s ease; position: relative; overflow:hidden;
+      box-shadow: 0 12px 24px rgba(3,105,161,.35), inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    .btn-primary::after{
+      content:""; position:absolute; inset:0;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.18) 40%, transparent 60%);
+      transform: translateX(-120%); transition: transform .6s ease; pointer-events:none;
+    }
+    .btn-primary:hover{ transform: translateY(-1px); box-shadow: 0 16px 30px rgba(3,105,161,.45), inset 0 1px 0 rgba(255,255,255,.18); filter:saturate(110%); }
+    .btn-primary:hover::after{ transform: translateX(120%); }
+    .btn-content{ display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; }
+    .spinner{ width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation: spin 1s linear infinite; display:none; }
+    @keyframes spin{ to { transform: rotate(360deg); } }
+    .btn-primary .ripple{
+      position:absolute; width:8px; height:8px; border-radius:50%;
+      background: radial-gradient(circle, rgba(255,255,255,.6) 0%, rgba(255,255,255,0) 60%);
+      transform: translate(-50%,-50%); pointer-events:none; animation: ripple .6s ease-out;
+    }
+    @keyframes ripple{ from{opacity:.7; transform: translate(-50%,-50%) scale(1);} to{opacity:0; transform: translate(-50%,-50%) scale(18);} }
+
+    /* FIX: add missing progress bar styles */
+    .progress{
+      position:absolute; left:0; top:0; height:3px; width:100%;
+      background: transparent; overflow:hidden; opacity:0; transition: opacity .25s ease;
+    }
+    .progress.active{ opacity:1; }
+    .progress::after{
+      content:""; position:absolute; left:-40%; top:0; height:100%; width:40%;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: slide 1.1s ease-in-out infinite;
+    }
+    @keyframes slide{ 0%{ left:-40%; } 50%{ left:20%; } 100%{ left:100%; } }
+
+    /* FIX: add theme toggle button styles */
+    .theme-toggle{
+      position:absolute; top:12px; right:12px; width:40px; height:40px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.25);
+      background: linear-gradient(180deg, #fde68a, #f59e0b);
+      color:#111; display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.2);
+      transition: transform .15s ease, filter .2s ease, box-shadow .2s ease;
+    }
+    .theme-toggle:hover{ transform: translateY(-1px); filter: saturate(115%); box-shadow: 0 10px 22px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25); }
+
+    /* FIX: add theme palettes (with aurora vars) so shuffle works */
+    body.theme-1{ --bg1:#0f172a; --bg2:#0b1220; --accent:#38bdf8; --accent-2:#6366f1; --accent-3:#06b6d4; --aurora1:rgba(244,63,94,.16); --aurora2:rgba(59,130,246,.16); --aurora3:rgba(34,197,94,.16); --aurora4:rgba(236,72,153,.16); }
+    body.theme-2{ --bg1:#0a1f1a; --bg2:#06140f; --accent:#34d399; --accent-2:#22d3ee; --accent-3:#f472b6; --aurora1:rgba(52,211,153,.18); --aurora2:rgba(34,211,238,.14); --aurora3:rgba(244,114,182,.16); --aurora4:rgba(125,211,252,.12); }
+    body.theme-3{ --bg1:#100b2b; --bg2:#0a0820; --accent:#8b5cf6; --accent-2:#a78bfa; --accent-3:#22d3ee; --aurora1:rgba(139,92,246,.18); --aurora2:rgba(167,139,250,.16); --aurora3:rgba(34,211,238,.14); --aurora4:rgba(236,72,153,.14); }
+    body.theme-4{ --bg1:#1a1007; --bg2:#0f0905; --accent:#f59e0b; --accent-2:#f97316; --accent-3:#84cc16; --aurora1:rgba(245,158,11,.18); --aurora2:rgba(249,115,22,.16); --aurora3:rgba(132,204,22,.14); --aurora4:rgba(234,179,8,.14); }
+    body.theme-5{ --bg1:#240b1a; --bg2:#150611; --accent:#f472b6; --accent-2:#ec4899; --accent-3:#6366f1; --aurora1:rgba(244,114,182,.18); --aurora2:rgba(236,72,153,.16); --aurora3:rgba(99,102,241,.16); --aurora4:rgba(59,130,246,.14); }
+    body.theme-6{ --bg1:#05161f; --bg2:#031018; --accent:#22d3ee; --accent-2:#60a5fa; --accent-3:#a78bfa; --aurora1:rgba(34,211,238,.18); --aurora2:rgba(96,165,250,.18); --aurora3:rgba(167,139,250,.14); --aurora4:rgba(20,184,166,.12); }
+    body.theme-7{ --bg1:#061a0b; --bg2:#041207; --accent:#84cc16; --accent-2:#10b981; --accent-3:#06b6d4; --aurora1:rgba(132,204,22,.18); --aurora2:rgba(16,185,129,.16); --aurora3:rgba(6,182,212,.16); --aurora4:rgba(59,130,246,.12); }
+    body.theme-8{ --bg1:#200a06; --bg2:#140704; --accent:#ef4444; --accent-2:#f97316; --accent-3:#f59e0b; --aurora1:rgba(239,68,68,.18); --aurora2:rgba(249,115,22,.16); --aurora3:rgba(245,158,11,.16); --aurora4:rgba(244,63,94,.14); }
+    body.theme-9{ --bg1:#140721; --bg2:#0b0516; --accent:#a78bfa; --accent-2:#f472b6; --accent-3:#22d3ee; --aurora1:rgba(167,139,250,.18); --aurora2:rgba(244,114,182,.16); --aurora3:rgba(34,211,238,.16); --aurora4:rgba(59,130,246,.14); }
+    body.theme-10{ --bg1:#1e1306; --bg2:#120b04; --accent:#fbbf24; --accent-2:#f59e0b; --accent-3:#ef4444; --aurora1:rgba(251,191,36,.20); --aurora2:rgba(245,158,11,.16); --aurora3:rgba(239,68,68,.16); --aurora4:rgba(244,114,182,.14); }
+
+    /* Optional: clearer focus ring */
+    :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+    /* Scale recognized image nicely inside the card */
+    #result{ margin-top:12px; }
+    #result .frame{
+      border:1px solid rgba(148,163,184,.25);
+      background: rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:8px;
+    }
+    #result .frame img{
+      display:block;
+      max-width:100%;
+      height:auto;
+      max-height:65vh; /* keep fully visible on most screens */
+      object-fit: contain;
+      border-radius:10px;
+    }
+  </style>
+</head>
+<body class="theme-1">
+  <div class="container">
+    <!-- theme toggle + progress -->
+    <button id="themeToggle" class="theme-toggle" type="button" title="Toggle theme" aria-label="Toggle theme">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12 3v2m0 14v2M21 12h-2M5 12H3m14.95 4.95-1.41-1.41M6.46 6.46 5.05 5.05m12.9 0-1.41 1.41M6.46 17.54l-1.41 1.41" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+
+    <h2>📸 Face Recognition</h2>
+
+    <form id="recognizeForm" enctype="multipart/form-data" method="post">
+      <!-- replaced basic file input with dropzone + preview + hidden input -->
+      <div class="field">
+        <label>Upload Group Image:</label>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload image by browsing or drag and drop">
+          <div class="dz-icon" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+              <path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.8A2 2 0 0 1 10.8 3h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.3"/>
+              <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.3"/>
+            </svg>
+          </div>
+          <div class="dz-text"><strong>Drag & drop</strong> image here or <span class="link">browse</span></div>
+          <div class="dz-sub">PNG or JPG, up to 10MB</div>
+          <span id="fileBadge" class="badge" aria-live="polite">0/1</span>
+          <div id="preview" class="preview"></div>
+        </div>
+        <input id="fileInput" type="file" name="file" accept="image/*" required style="display:none">
+      </div>
+
+      <div class="actions">
+        <button id="submitBtn" type="submit" class="btn-primary">
+          <span class="btn-content">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="label">Recognize Faces</span>
+          </span>
+        </button>
+        <button type="button" id="resetBtn" class="btn-ghost">Reset</button>
+      </div>
+    </form>
+
+    <!-- toast-styled status -->
+    <div id="status" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- enhanced result frame -->
+    <div id="result"></div>
+
+    <!-- turn back link into a ghost-styled link (optional) -->
+    <a href="/" class="btn-ghost" style="text-decoration:none; margin-top:14px; display:inline-block; text-align:center;">⬅ Back to Face Trainer</a>
+  </div>
+
+  <script>
+    const form = document.getElementById('recognizeForm');
+    const fileInput = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const preview = document.getElementById('preview');
+    const resultDiv = document.getElementById('result');
+    const statusEl = document.getElementById('status');
+    const submitBtn = document.getElementById('submitBtn');
+    const progress = document.getElementById('progress');
+    const container = document.querySelector('.container');
+    const fileBadge = document.getElementById('fileBadge');
+
+    // Dropzone single-file UX
+    function updateBadge(){
+      const has = fileInput.files && fileInput.files.length > 0;
+      if (fileBadge) fileBadge.textContent = (has ? '1' : '0') + '/1';
+    }
+    function setPreview(file){
+      preview.innerHTML = '';
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const div = document.createElement('div');
+      div.className = 'thumb';
+      div.innerHTML = `<img src="${url}" alt="${file.name}"><button class="remove" title="Remove">&times;</button>`;
+      preview.appendChild(div);
+      updateBadge();
+    }
+    dropzone.addEventListener('click', ()=> fileInput.click());
+    dropzone.addEventListener('keydown', (e)=>{ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); fileInput.click(); }});
+    ['dragenter','dragover'].forEach(evt=>{
+      dropzone.addEventListener(evt,(e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('is-dragover'); });
+    });
+    ['dragleave','dragend','drop'].forEach(evt=>{
+      dropzone.addEventListener(evt,(e)=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('is-dragover'); });
+    });
+    dropzone.addEventListener('drop', (e)=>{
+      const file = Array.from(e.dataTransfer.files).find(f=>f.type.startsWith('image/'));
+      if (file){
+        const dt = new DataTransfer(); dt.items.add(file); fileInput.files = dt.files;
+        setPreview(file);
+      }
+    });
+    fileInput.addEventListener('change', ()=>{
+      const f = fileInput.files[0];
+      if (f && f.type.startsWith('image/')) setPreview(f);
+    });
+    preview.addEventListener('click', (e)=>{
+      if (e.target.closest('.remove')){
+        fileInput.value = '';
+        preview.innerHTML = '';
+        updateBadge();
+      }
+    });
+
+    // Ripple on submit
+    form.addEventListener('submit', (e)=>{
+      const rect = submitBtn.getBoundingClientRect();
+      const x = (e.clientX || rect.width/2) - rect.left;
+      const y = (e.clientY || rect.height/2) - rect.top;
+      const r = document.createElement('span');
+      r.className = 'ripple'; r.style.left = x + 'px'; r.style.top = y + 'px';
+      submitBtn.appendChild(r); setTimeout(()=>r.remove(), 600);
+    }, {capture:true});
+
+    // Loading + toast helpers
+    function setLoading(on){
+      const spin = submitBtn.querySelector('.spinner');
+      const label = submitBtn.querySelector('.label');
+      if (on){
+        progress?.classList.add('active');
+        submitBtn.disabled = true;
+        spin.style.display = 'inline-block';
+        label.textContent = 'Recognizing...';
+      } else {
+        progress?.classList.remove('active');
+        submitBtn.disabled = false;
+        spin.style.display = 'none';
+        label.textContent = 'Recognize Faces';
+      }
+    }
+    function showToast(msg, type=''){
+      statusEl.className = type;
+      statusEl.textContent = msg || '';
+    }
+
+    // Confetti on success
+    function confettiBurst(duration = 900, count = 100){
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;';
+      canvas.width = innerWidth; canvas.height = innerHeight; document.body.appendChild(canvas);
+      const parts = Array.from({length:count}).map(()=>({
+        x: Math.random()*canvas.width, y: -20 - Math.random()*canvas.height*0.2,
+        r: 2 + Math.random()*3, c: `hsl(${Math.random()*360},90%,60%)`,
+        s: 1 + Math.random()*2.5, a: Math.random()*Math.PI
+      }));
+      const start = performance.now();
+      (function loop(t){
+        const el = t - start; ctx.clearRect(0,0,canvas.width,canvas.height);
+        parts.forEach(p=>{ p.y += p.s*4; p.x += Math.sin((el/200)+p.a)*0.8; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); });
+        if (el < duration) requestAnimationFrame(loop); else canvas.remove();
+      })(start);
+    }
+
+    // Submit
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showToast('⏳ Processing... Please wait', '');
+      resultDiv.innerHTML = '';
+      setLoading(true);
+      const formData = new FormData(form);
+      try {
+        const formData = new FormData(form);
+        const response = await fetch('/recognize/', {  // CHANGED: relative same-origin URL
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          showToast('❌ Recognition failed! ' + (errText || ''), 'error');
+          return;
+        }
+        const blob = await response.blob();
+        const imgUrl = URL.createObjectURL(blob);
+        showToast('✅ Recognition complete!', 'success');
+        resultDiv.innerHTML = `<div class="frame"><img src="${imgUrl}" alt="Recognized Faces"></div>`;
+        confettiBurst();
+      } catch (err) {
+        showToast('⚠️ Error: ' + (err?.message || err), 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Reset
+    document.getElementById('resetBtn').addEventListener('click', ()=>{
+      form.reset(); preview.innerHTML=''; resultDiv.innerHTML=''; showToast('', '');
+      setLoading(false);
+    });
+
+    // Subtle tilt effect
+    container.addEventListener('mousemove', (e)=>{
+      const r = container.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      container.style.transform = `perspective(900px) rotateX(${(-y*4).toFixed(2)}deg) rotateY(${(x*4).toFixed(2)}deg) translateZ(0)`;
+    });
+    container.addEventListener('mouseleave', ()=>{ container.style.transform = 'none'; });
+
+    // 10-theme shuffle engine (persisted)
+    const THEMES = ['theme-1','theme-2','theme-3','theme-4','theme-5','theme-6','theme-7','theme-8','theme-9','theme-10'];
+    function applyTheme(i){
+      THEMES.forEach(t => document.body.classList.remove(t));
+      document.body.classList.add(THEMES[i]);
+      localStorage.setItem('themeIndex', String(i));
+    }
+    function getSavedThemeIndex(){
+      const saved = parseInt(localStorage.getItem('themeIndex') || '0', 10);
+      return Number.isNaN(saved) ? 0 : Math.max(0, Math.min(saved, THEMES.length-1));
+    }
+    let themeIndex = getSavedThemeIndex();
+    applyTheme(themeIndex);
+    themeToggle.addEventListener('click', () => {
+      themeIndex = (themeIndex + 1) % THEMES.length;
+      applyTheme(themeIndex);
+    });
+  </script>
+</body>
+</html>

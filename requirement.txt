@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+insightface
+opencv-python
+numpy
+sqlalchemy
+jinja2
+python-multipart
+onnxruntime>=1.16,<2
