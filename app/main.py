@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, File,Request
+from fastapi import FastAPI, UploadFile, Form, File,Request, HTTPException
 from fastapi.responses import HTMLResponse,FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ import os
 import cv2
 # NEW: CORS
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError  # added
 
 app = FastAPI()
 # NEW: Allow localhost and 127.0.0.1 (same-port)
@@ -47,41 +48,70 @@ async def recognize_html(request: Request):
 
 @app.post("/train/")
 async def train_person(
+    request: Request,  # NEW: detect HTML form submissions
     person_id: int = Form(...),
     name: str = Form(...),
     files: list[UploadFile] = File(...)
 ):
     db: Session = SessionLocal()
-    
-    embeddings = []
+    try:
+        wants_html = "text/html" in (request.headers.get("accept") or "").lower()  # NEW
 
-    for file in files:
-        contents = await file.read()
-        emb = encoder.encode_image(contents)
-        if emb is not None:
-            embeddings.append(emb)
+        # Check if ID already exists -> reject with clear error
+        existing = db.query(Person).filter(Person.id == person_id).first()
+        if existing:
+            # NEW: popup for browser form posts
+            if wants_html:
+                return HTMLResponse(
+                    '<script>alert("Id is present. Try with new id"); history.back();</script>',
+                    status_code=400
+                )
+            raise HTTPException(status_code=400, detail="Id is present. Try with new id")
 
-    if not embeddings:
-        return {"error": f"No valid faces found for {name}"}
+        embeddings = []
 
-    avg_embedding = np.mean(embeddings, axis=0)
-    serialized = pickle.dumps(avg_embedding)
+        for file in files:
+            contents = await file.read()
+            emb = encoder.encode_image(contents)
+            if emb is not None:
+                embeddings.append(emb)
 
-    person = Person(id=person_id, name=name, embedding=serialized)
-    db.merge(person)  # upsert
-    db.commit()
-    db.close()
+        if not embeddings:
+            if wants_html:  # NEW
+                return HTMLResponse(
+                    f'<script>alert("No valid faces found for {name}"); history.back();</script>',
+                    status_code=400
+                )
+            raise HTTPException(status_code=400, detail=f"No valid faces found for {name}")
 
-    return {"message": f"✅ {name} (ID={person_id}) trained successfully!"}
+        avg_embedding = np.mean(embeddings, axis=0)
+        serialized = pickle.dumps(avg_embedding)
+
+        person = Person(id=person_id, name=name, embedding=serialized)
+        db.add(person)  # insert only (no upsert)
+        db.commit()
+        return {"message": f"✅ {name} (ID={person_id}) trained successfully!"}
+    except IntegrityError:
+        db.rollback()
+        # Covers unique name or any PK violations enforced by DB
+        if "text/html" in (request.headers.get("accept") or "").lower():  # NEW
+            return HTMLResponse(
+                '<script>alert("Id is present. Try with new id"); history.back();</script>',
+                status_code=400
+            )
+        raise HTTPException(status_code=400, detail="Id is present. Try with new id")
+    finally:
+        db.close()
 
 # Support POST without trailing slash
 @app.post("/train")
 async def train_person_no_slash(
+    request: Request,  # NEW
     person_id: int = Form(...),
     name: str = Form(...),
     files: list[UploadFile] = File(...)
 ):
-    return await train_person(person_id, name, files)
+    return await train_person(request, person_id, name, files)
 
 @app.get("/recognize-page", response_class=HTMLResponse)
 async def recognize_page(request: Request):

@@ -4,6 +4,6 @@ from app.database import Base
 class Person(Base):
     __tablename__ = "persons"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)  # PRIMARY KEY enforces uniqueness
     name = Column(String, unique=True)
     embedding = Column(LargeBinary)  # Serialized numpy array
